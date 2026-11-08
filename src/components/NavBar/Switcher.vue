@@ -58,25 +58,46 @@
       </ul>
     </div>
 
-    <button
-      class="flex h-10 w-10 cursor-pointer items-center justify-center overflow-visible border-none rounded-2 bg-transparent p-0 text-[var(--nav-text)] transition-colors duration-200 hover:bg-[var(--nav-hover-bg)] max-[860px]:w-full max-[860px]:justify-start max-[860px]:gap-3 max-[860px]:py-3"
-      :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-      @click="toggleTheme"
+    <div
+      class="relative flex h-full items-center max-[860px]:h-auto max-[860px]:flex-col max-[860px]:items-stretch"
+      @keydown.esc.stop="closeThemeDropdown"
     >
-      <div class="relative flex h-5.5 w-5.5 items-center justify-center">
-        <Icon
-          icon="lucide:sun"
-          class="absolute left-0 top-0 h-full w-full transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          :class="isDark ? 'scale-0 rotate-45 opacity-0' : 'scale-100 rotate-0 opacity-100'"
-        />
-        <Icon
-          icon="lucide:moon"
-          class="absolute left-0 top-0 h-full w-full transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          :class="isDark ? 'scale-100 rotate-0 opacity-100' : 'scale-0 -rotate-45 opacity-0'"
-        />
-      </div>
-      <span class="hidden text-4 max-[860px]:inline">{{ $t('navbar.appearance') }}</span>
-    </button>
+      <button
+        ref="themeButton"
+        type="button"
+        class="flex h-10 w-10 cursor-pointer items-center justify-center overflow-visible border-none rounded-2 bg-transparent p-0 text-[var(--nav-text)] transition-colors duration-200 hover:bg-[var(--nav-hover-bg)] max-[860px]:w-full max-[860px]:justify-start max-[860px]:gap-3 max-[860px]:py-3"
+        :aria-label="`${$t('navbar.appearance')}: ${$t(currentTheme.label)}`"
+        :title="$t(currentTheme.label)"
+        :aria-expanded="isThemeDropdownOpen"
+        aria-controls="theme-options"
+        @click.stop="toggleThemeDropdown"
+      >
+        <Icon :icon="currentTheme.icon" class="h-5.5 w-5.5" />
+        <span class="hidden text-4 max-[860px]:inline">
+          {{ $t('navbar.appearance') }}：{{ $t(currentTheme.label) }}
+        </span>
+      </button>
+      <ul
+        v-if="isThemeDropdownOpen"
+        id="theme-options"
+        class="absolute right-0 top-[calc(100%+8px)] m-0 min-w-40 list-none rounded-3 border border-[rgba(0,0,0,0.1)] bg-[var(--nav-menu-bg,#fff)] p-1.5 shadow-[0_10px_25px_rgba(0,0,0,0.1)] max-[860px]:static max-[860px]:w-full max-[860px]:border-none max-[860px]:bg-transparent max-[860px]:p-0 max-[860px]:shadow-none"
+        :aria-label="$t('navbar.appearance')"
+      >
+        <li v-for="option in THEME_OPTIONS" :key="option.value">
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-3 rounded-2 border-none bg-transparent px-3 py-2.5 text-3.6 text-[var(--nav-text)] transition-colors duration-200 hover:bg-[var(--switcher-item-hover)] max-[860px]:px-4 max-[860px]:py-3"
+            :class="{ 'text-[var(--nav-primary)] font-600': themePreference === option.value }"
+            :aria-pressed="themePreference === option.value"
+            @click.stop="selectTheme(option.value)"
+          >
+            <Icon :icon="option.icon" class="h-4 w-4" />
+            <span class="flex-1 text-left">{{ $t(option.label) }}</span>
+            <Icon v-if="themePreference === option.value" icon="lucide:check" class="h-4 w-4" />
+          </button>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -84,7 +105,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { applyTheme, getPreferredTheme } from '@/utils/theme'
+import { useMounted, type BasicColorSchema } from '@vueuse/core'
+import { useTheme } from '@/utils/theme'
 
 type LocaleCode = 'zh-CN' | 'zh-TW' | 'en-US'
 
@@ -99,16 +121,37 @@ const AVAILABLE_LANGUAGES: LanguageOption[] = [
   { code: 'en-US', name: 'English' },
 ]
 
+const THEME_OPTIONS = [
+  { value: 'light', label: 'navbar.themeLight', icon: 'lucide:sun' },
+  { value: 'dark', label: 'navbar.themeDark', icon: 'lucide:moon' },
+  { value: 'auto', label: 'navbar.themeSystem', icon: 'lucide:monitor' },
+] as const
+
 const { locale } = useI18n<{ locale: LocaleCode }>()
 const isDropdownOpen = ref(false)
-const isDark = ref(false)
+const isThemeDropdownOpen = ref(false)
+const themeButton = ref<HTMLButtonElement | null>(null)
+const { store: themePreference } = useTheme()
+const isMounted = useMounted()
+const currentTheme = computed(
+  () =>
+    THEME_OPTIONS.find(
+      (option) => option.value === (isMounted.value ? themePreference.value : 'auto'),
+    )!,
+)
 
 const currentLangName = computed((): string => {
   return AVAILABLE_LANGUAGES.find((l) => l.code === locale.value)?.name ?? 'Language'
 })
 
-const toggleDropdown = () => (isDropdownOpen.value = !isDropdownOpen.value)
-const closeDropdown = () => (isDropdownOpen.value = false)
+const toggleDropdown = () => {
+  isThemeDropdownOpen.value = false
+  isDropdownOpen.value = !isDropdownOpen.value
+}
+const closeDropdown = () => {
+  isDropdownOpen.value = false
+  isThemeDropdownOpen.value = false
+}
 
 const selectLanguage = (code: LocaleCode) => {
   locale.value = code
@@ -116,16 +159,23 @@ const selectLanguage = (code: LocaleCode) => {
   isDropdownOpen.value = false
 }
 
-const toggleTheme = () => {
-  isDark.value = !isDark.value
-  applyTheme(isDark.value ? 'dark' : 'light')
+const toggleThemeDropdown = () => {
+  isDropdownOpen.value = false
+  isThemeDropdownOpen.value = !isThemeDropdownOpen.value
+}
+
+const closeThemeDropdown = () => {
+  isThemeDropdownOpen.value = false
+  themeButton.value?.focus()
+}
+
+const selectTheme = (preference: BasicColorSchema) => {
+  themePreference.value = preference
+  closeThemeDropdown()
 }
 
 onMounted(() => {
   window.addEventListener('click', closeDropdown)
-
-  isDark.value = getPreferredTheme() === 'dark'
-  applyTheme(isDark.value ? 'dark' : 'light', false)
 })
 
 onUnmounted(() => {

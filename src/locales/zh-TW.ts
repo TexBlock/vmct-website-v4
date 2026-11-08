@@ -2,6 +2,9 @@ export default {
   navbar: {
     title: 'VM漢化組',
     appearance: '外觀切換',
+    themeLight: '淺色',
+    themeDark: '深色',
+    themeSystem: '跟隨系統',
     modpack: '整合包漢化',
     map: '地圖漢化',
     community: '加入社區',

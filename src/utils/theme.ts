@@ -1,3 +1,4 @@
+import { createGlobalState, useColorMode } from '@vueuse/core'
 import githubMarkdownDarkHref from 'github-markdown-css/github-markdown-dark.css?url'
 import githubMarkdownLightHref from 'github-markdown-css/github-markdown-light.css?url'
 
@@ -10,22 +11,6 @@ const MARKDOWN_THEME_HREF: Record<ThemeMode, string> = {
   light: githubMarkdownLightHref,
   dark: githubMarkdownDarkHref,
 }
-
-const isThemeMode = (value: unknown): value is ThemeMode => value === 'light' || value === 'dark'
-
-const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined'
-
-const getStoredTheme = (): ThemeMode | null => {
-  if (typeof window === 'undefined') return null
-
-  const theme = window.localStorage.getItem(THEME_STORAGE_KEY)
-  return isThemeMode(theme) ? theme : null
-}
-
-const getSystemTheme = (): ThemeMode =>
-  typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light'
 
 const getMarkdownThemeLink = (): HTMLLinkElement => {
   const existing = document.getElementById(MARKDOWN_THEME_LINK_ID)
@@ -43,30 +28,29 @@ const getMarkdownThemeLink = (): HTMLLinkElement => {
   return link
 }
 
-const syncMarkdownTheme = (theme: ThemeMode) => {
-  if (!isBrowser()) return
-
-  const link = getMarkdownThemeLink()
-  const href = MARKDOWN_THEME_HREF[theme]
-
-  if (link.getAttribute('href') !== href) {
-    link.href = href
+export const useTheme = createGlobalState(() => {
+  if (typeof window !== 'undefined') {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored !== null && stored !== 'light' && stored !== 'dark' && stored !== 'auto') {
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'auto')
+    }
   }
-}
 
-export const getPreferredTheme = (): ThemeMode => getStoredTheme() ?? getSystemTheme()
+  return useColorMode({
+    storageKey: THEME_STORAGE_KEY,
+    modes: { light: '', dark: 'dark' },
+    disableTransition: false,
+    onChanged(theme, defaultHandler) {
+      if (typeof document === 'undefined') return
 
-export const applyTheme = (theme: ThemeMode, persist = true) => {
-  if (!isBrowser()) return
+      defaultHandler(theme)
+      document.documentElement.dataset.theme = theme
 
-  const root = document.documentElement
-
-  root.classList.toggle('dark', theme === 'dark')
-  root.dataset.theme = theme
-
-  syncMarkdownTheme(theme)
-
-  if (persist) {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
-  }
-}
+      const link = getMarkdownThemeLink()
+      const href = MARKDOWN_THEME_HREF[theme]
+      if (link.getAttribute('href') !== href) {
+        link.href = href
+      }
+    },
+  })
+})

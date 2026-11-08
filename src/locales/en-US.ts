@@ -2,6 +2,9 @@ export default {
   navbar: {
     title: 'VM Translation Group',
     appearance: 'Appearance',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeSystem: 'System',
     modpack: 'Modpacks',
     map: 'Maps',
     community: 'Join Community',
